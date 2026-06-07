@@ -31,10 +31,10 @@ void CollisionDetectionForceTorqueSensor::init(mc_control::MCGlobalController & 
   {
     threshold_offset_ = Eigen::Vector6d::Constant(1.0);
   }
-  lpf_threshold_.setValues(threshold_offset_, threshold_filtering_, 3);
+  lpf_threshold_.setValues(threshold_offset_, threshold_filtering_, 6);
 
   // Check if the robot has the specified force/torque sensor
-  if(!robot.hasBodySensor(forceTorqueSensorName_))
+  if(!robot.hasForceSensor(forceTorqueSensorName_))
   {
     mc_rtc::log::error("[CollisionDetectionForceTorqueSensor] The force/torque sensor {} does not exist in the robot", forceTorqueSensorName_);
     return;
