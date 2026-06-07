@@ -1,29 +1,121 @@
-mc_rtc new plugin template
-==
+Here's a README in the same style and structure as your `CollisionDetectionJerk` example:
 
-This project is a template for a new plugin wihtin [mc_rtc]
+# CollisionDetectionForceTorqueSensor — mc_rtc Global Plugin
 
-It comes with:
-- a CMake project that can build a plugin for [mc_rtc], the project can be put within [mc_rtc] source-tree for easier updates
-- clang-format files
-- automated GitHub Actions builds on three major platforms
+A lightweight mc_rtc global plugin for force/torque-based collision detection using a **force-torque sensor**. It monitors the measured wrench (forces and torques) from a specified sensor and flags a collision when the signal exceeds adaptive thresholds.
 
-Quick start
---
+---
 
-1. Renaming the controller from `CollisionDetectionForceTorqueSensor` to `MyPlugin`. In a shell (Git Bash on Windows, replace sed with gsed on macOS):
+## How It Works
 
-```bash
-sed -i -e's/CollisionDetectionForceTorqueSensor/MyPlugin/g' `find . -type f`
-git mv src/CollisionDetectionForceTorqueSensor.cpp src/MyPlugin.cpp
-git mv src/CollisionDetectionForceTorqueSensor.h src/MyPlugin.h
-git mv etc/CollisionDetectionForceTorqueSensor.in.yaml etc/MyPlugin.in.yaml
+At each control tick the plugin:
+
+1. **Reads force/torque sensor data** — obtains the gravity-compensated wrench from a named force sensor.
+2. **Applies adaptive thresholds** — a low-pass filter (`LpfThreshold`) continuously tracks the measured wrench and generates upper and lower bounds around the filtered signal.
+3. **Detects collisions** — compares the measured signal against the adaptive thresholds. A collision is detected when any monitored axis exceeds its allowed band.
+4. **Sets a datastore flag** — writes `true` to the `"Obstacle detected"` datastore entry so other controllers can react.
+
+---
+
+## Configuration
+
+Add the plugin to your mc_rtc configuration:
+
+```yaml
+Plugins:
+  - CollisionDetectionForceTorqueSensor
+
+collision_detection_force_torque_sensor:
+  threshold_filtering_base: 0.05                 # LPF coefficient (0–1); higher = faster adaptation
+  threshold_offset_base: [1, 1, 1, 1, 1, 1]     # Per-axis detection band
+
+# Optional (top-level):
+forceTorqueSensorName: EEForceSensor             # Name of the force/torque sensor
 ```
 
-2. You can customize the project name in vcpkg.json as well, note that this must follow [vcpkg manifest rules](https://github.com/microsoft/vcpkg/blob/master/docs/users/manifests.md)
+| Parameter                  | Type                    | Default              | Description                                              |
+| -------------------------- | ----------------------- | -------------------- | -------------------------------------------------------- |
+| `threshold_filtering_base` | `double`                | `0.05`               | Low-pass filter coefficient for the adaptive threshold   |
+| `threshold_offset_base`    | `[τx, τy, τz, Fx, Fy, Fz]` | `[1, 1, 1, 1, 1, 1]` | Detection band applied around the filtered wrench signal |
+| `forceTorqueSensorName`    | `string`                | `"EEForceSensor"`    | Name of the force/torque sensor to monitor               |
 
-3. Build and install the project
+> The threshold vector follows the wrench ordering used by `Eigen::Vector6d`:
+> `[τx, τy, τz, Fx, Fy, Fz]`.
 
-4. Run using your [mc_rtc] interface of choice, add `MyPlugin` to the `Plugins` configuration entry or enable the autoload option
+---
 
-[mc_rtc]: https://jrl-umi3218.github.io/mc_rtc/
+## Runtime GUI
+
+The plugin exposes a panel under **Plugins → CollisionDetectionForceTorqueSensor**:
+
+| Control                    | Description                                                     |
+| -------------------------- | --------------------------------------------------------------- |
+| `threshold_filtering_base` | Adjust LPF coefficient live                                     |
+| `threshold_offset_`        | Adjust per-axis threshold offsets live                          |
+| `Axis shown`               | Select axis (0–5) for the live plot                             |
+| `Collision stop`           | Enable/disable writing the detection result to the datastore    |
+| `Verbose`                  | Print collision detection messages to the console               |
+| `Add plot`                 | Open a live plot of wrench measurements vs. adaptive thresholds |
+
+Axis mapping:
+
+| Index | Signal          |
+| ----- | --------------- |
+| 0     | Torque X (`τx`) |
+| 1     | Torque Y (`τy`) |
+| 2     | Torque Z (`τz`) |
+| 3     | Force X (`Fx`)  |
+| 4     | Force Y (`Fy`)  |
+| 5     | Force Z (`Fz`)  |
+
+---
+
+## Logged Entries
+
+| Key                                                    | Type       | Description                                       |
+| ------------------------------------------------------ | ---------- | ------------------------------------------------- |
+| `CollisionDetectionForceTorqueSensor_forceTorque`      | `Vector6d` | Gravity-compensated wrench measured by the sensor |
+| `CollisionDetectionForceTorqueSensor_forceTorque_norm` | `double`   | Euclidean norm of the wrench vector               |
+
+---
+
+## Datastore Interface
+
+| Key                   | Type   | Written by        | Description                                                                        |
+| --------------------- | ------ | ----------------- | ---------------------------------------------------------------------------------- |
+| `"Obstacle detected"` | `bool` | Plugin (`before`) | `true` when a collision is detected; only written when *Collision stop* is enabled |
+
+The entry is created automatically on `init` if it does not already exist.
+
+---
+
+## Detection Principle
+
+The plugin uses adaptive thresholds generated by a low-pass filtered version of the measured wrench:
+
+```text
+threshold_high = filtered_wrench + offset
+threshold_low  = filtered_wrench - offset
+```
+
+A collision is detected whenever:
+
+```text
+wrench[i] > threshold_high[i]
+```
+
+or
+
+```text
+wrench[i] < threshold_low[i]
+```
+
+for any monitored axis.
+
+By tracking the slowly varying nominal wrench while preserving a fixed detection margin, the plugin can detect sudden external contacts and impacts without requiring an explicit force model.
+
+---
+
+## Dependencies
+
+* [mc_rtc](https://jrl-umi3218.github.io/mc_rtc/?utm_source=chatgpt.com)
