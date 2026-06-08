@@ -132,6 +132,16 @@ void CollisionDetectionForceTorqueSensor::addLog(mc_control::MCGlobalController 
                                         [this]() { return forceTorque_; });
   ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_forceTorque_norm",
                                         [this]() { return forceTorque_.norm(); });
+  ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_threshold_high",
+                                        [this]() { return threshold_high_; });
+  ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_threshold_low",
+                                        [this]() { return threshold_low_; });
+  ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_obstacle_detected",
+                                        [this]() { return obstacle_detected_; });
+  ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_threshold_offset",
+                                        [this]() { return threshold_offset_; });
+  ctl.controller().logger().addLogEntry("CollisionDetectionForceTorqueSensor_threshold_filtering",
+                                        [this]() { return threshold_filtering_; });
 }
 
 void CollisionDetectionForceTorqueSensor::addPlot(mc_control::MCGlobalController & ctl)
